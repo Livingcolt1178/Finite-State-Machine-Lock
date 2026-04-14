@@ -1,0 +1,46 @@
+# Vivado project files
+*.xpr
+*.jou
+*.log
+*.str
+*.pb
+
+# Vivado cache and run directories
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.srcs/utils_1/
+*.gen/
+
+# Bitstream and implementation outputs
+!*.bit
+*.bin
+*.mcs
+*.prm
+
+# Vivado backup files
+*.bak
+*.orig
+
+# Vivado IP output (regeneratable)
+*.srcs/sources_1/ip/*/
+
+# Keep clk_wiz XCI source (needed to regenerate IP)
+!*.srcs/sources_1/ip/clk_wiz_0/clk_wiz_0.xci
+
+# Vivado waveform configs
+!*.wcfg
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+
+# Generated reports
+*.rpt
+*.xml
+*.html
