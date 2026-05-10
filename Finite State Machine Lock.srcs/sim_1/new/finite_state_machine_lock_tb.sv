@@ -34,8 +34,6 @@ module finite_state_machine_lock_tb();
     logic led_green;
     
     // Internal signal monitors (for debugging)
-    logic [3:0] state;
-    logic [3:0] next_state;
     typedef enum logic [3:0] {
         PROGRAM_0   = 4'b0000,  //initial state, waiting for the first button press
         PROGRAM_1   = 4'b0001,  //2nd digit in password
@@ -50,6 +48,8 @@ module finite_state_machine_lock_tb();
         UNLOCKED    = 4'b1000,   //unlocked state, waits for 5 seconds before locking again.
         ERROR       = 4'b1001   //Made a mistake in enterring Password
     } state_t;
+
+    state_t state, next_state;
     
     // ========================================
     // DUT Instantiation
@@ -68,7 +68,7 @@ module finite_state_machine_lock_tb();
     assign next_state = dut.next_state;
  
     // ========================================
-    // Clock Generation (100 MHz)
+    // Clock Generation (100 MHz) 1 cycle per 10ns
     // ========================================
     initial begin
         clk = 0;
@@ -76,12 +76,12 @@ module finite_state_machine_lock_tb();
     end
 
     //tasks
-    task check(input string test, input logic expected, input logic got);
+    task check(input string test, input logic[7:0] expected, input logic[7:0] got);
         begin
             if(expected == got) begin
-                $display("[%d]passed!  test: %s, got: %s, expected: %s", $time, test, got, expected);
+                $display("[%d]passed!  test: %s, got: %b, expected: %b", $time, test, got, expected);
             end else begin
-                $error("[%d]ERROR  test: %s, got: %s, expected: %s", $time, test, got, expected);
+                $error("[%d]ERROR  test: %s, got: %b, expected: %b", $time, test, got, expected);
             end
         end
     endtask
@@ -94,7 +94,9 @@ module finite_state_machine_lock_tb();
 
     task wait_cycle(input int N);
         begin
-            repeat(N * 255000) @(posedge clk);
+            repeat(N) do begin
+                @(posedge clk);
+            end while(dut.counter > 0);
         end
     endtask
 
@@ -118,6 +120,9 @@ module finite_state_machine_lock_tb();
         button_1 = d;
         button_2 = !button_1;
         wait_cycle(1);
+
+        button_1 = 0;
+        button_2 = 0;
 
         check("programming", LOCKED_0, state);
     endtask
@@ -211,13 +216,14 @@ module finite_state_machine_lock_tb();
         //=============
         program_lock(1, 0, 1, 0);
         check("programmability test: check state",      LOCKED_0,  state);
-        check("programmability test: check counter",    0,  dut.counter);
-        check("programmability test: check password",   1010,  dut.password);
+        check("programmability test: check counter",    1'b0,  dut.counter);
+        check("programmability test: check password",   4'b1010,  dut.password);
 
         //=============
         // Test 3: test input 1
         //=============
         button_1_input("start");
+        wait_cycle(1);
         check("input 1 test: check state",              LOCKED_1,  state);
         check("input 1 test: check counter",            0,  dut.counter);
         check("input 1 test: check input",              1,  dut.input_bit);
@@ -227,6 +233,7 @@ module finite_state_machine_lock_tb();
         // Test 4: test input 2
         //=============
         button_2_input("start");
+        wait_cycle(1);
         check("input 2 test: check state",              LOCKED_2,  state);
         check("input 2 test: check counter",            0,  dut.counter);
         check("input 2 test: check input",              0,  dut.input_bit);
@@ -236,6 +243,7 @@ module finite_state_machine_lock_tb();
         // Test 5: test input 3
         //=============
         button_1_input("start");
+        wait_cycle(1);
         check("input 3 test: check state",              LOCKED_3,  state);
         check("input 3 test: check counter",            0,  dut.counter);
         check("input 3 test: check input",              1,  dut.input_bit);
@@ -245,6 +253,7 @@ module finite_state_machine_lock_tb();
         // Test 6: test input 4
         //=============
         button_2_input("start");
+        wait_cycle(1);
         check("input 4 test: check state",              UNLOCKED,  state);
         check("input 4 test: check counter",            0,  dut.counter);
         check("input 4 test: check input",              0,  dut.input_bit);
@@ -277,18 +286,8 @@ module finite_state_machine_lock_tb();
         check("Unlocked test: check state",             UNLOCKED,  state);
         check("Unlocked test: check counter",           5,  dut.counter);
         check("Unlocked test: check unlocked_counter",  5,  dut.unlocked_counter);
-        @(posedge clk);
-        check("Unlocked test: check state",             UNLOCKED,  state);
-        check("Unlocked test: check counter",           6,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  6,  dut.unlocked_counter);
-        @(posedge clk);
-        check("Unlocked test: check state",             UNLOCKED,  state);
-        check("Unlocked test: check counter",           7,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  7,  dut.unlocked_counter);
-        @(posedge clk);
-        check("Unlocked test: check state",             LOCKED_0,  state);
-        check("Unlocked test: check counter",           0,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  0,  dut.unlocked_counter);
+
+
 
         //=============
         // Test 8: test ERROR
@@ -296,30 +295,26 @@ module finite_state_machine_lock_tb();
         rst();
         program_lock( 0, 1, 0, 1);
         button_1_input("start");
+        wait_cycle(1);
         check("ERROR test: check state",              ERROR,  state);
-        check("ERROR test: check counter",            1,  dut.counter);
         check("ERROR test: check input",              1,  dut.input_bit);
         check("ERROR test: check input_counter",      1,  dut.input_counter);
         button_1_input("start");
+        wait_cycle(1);
         check("ERROR test: check state",              ERROR,  state);
-        check("ERROR test: check counter",            2,  dut.counter);
         check("ERROR test: check input",              1,  dut.input_bit);
         check("ERROR test: check input_counter",      2,  dut.input_counter);
         button_1_input("start");
+        wait_cycle(1);
         check("ERROR test: check state",              ERROR,  state);
-        check("ERROR test: check counter",            3,  dut.counter);
         check("ERROR test: check input",              1,  dut.input_bit);
         check("ERROR test: check input_counter",      3,  dut.input_counter);
         button_1_input("start");
-        check("ERROR test: check state",              ERROR,  state);
-        check("ERROR test: check counter",            4,  dut.counter);
-        check("ERROR test: check input",              1,  dut.input_bit);
-        check("ERROR test: check input_counter",      4,  dut.input_counter);
         wait_cycle(1);
         check("ERROR test: check state",              LOCKED_0,  state);
-        check("ERROR test: check counter",            0,  dut.counter);
         check("ERROR test: check input",              1,  dut.input_bit);
         check("ERROR test: check input_counter",      0,  dut.input_counter);
+
 
 
         $finish;

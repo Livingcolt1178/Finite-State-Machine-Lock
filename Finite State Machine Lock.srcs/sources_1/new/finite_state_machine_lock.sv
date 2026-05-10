@@ -59,9 +59,9 @@ module finite_state_machine_lock(
     logic sample_valid;
     logic [3:0] password;
     logic [3:0] input_counter;
-    logic [3:0] unlocked_counter;
+    logic [26:0] unlocked_counter;
     parameter COUNTER_MAX = 8'd255;
-    parameter UNLOCKED_TIMEOUT = 3'd7;
+    parameter UNLOCKED_TIMEOUT = 26'd50000000;
     
     // State transition logic
     always_comb begin
@@ -129,7 +129,7 @@ module finite_state_machine_lock(
             if (counter == COUNTER_MAX) begin                    //first check to see if counter is maxxed and see if its a new a cycle.
                 counter <= 0;          
                 sample_valid <= 0;
-            end else begin                                  //if it isn't maxed out raise the counter and check for an input.
+            end else begin                                      //if it isn't maxed out raise the counter and check for an input.
                 counter <= counter + 1;
                 if((button_1 || button_2) && !sample_valid) begin
                     input_bit <= button_1;  // 1 if button_1, 0 if button_2
@@ -142,93 +142,97 @@ module finite_state_machine_lock(
 
     always_ff @( posedge clk) begin : Programmer
         if(!rst_n) begin 
-            password <= 0;
-            input_counter <= 0;
-            unlocked_counter <= 0;
-            state           <= PROGRAM_0;
+            password            <= 0;
+            input_counter       <= 0;
+            unlocked_counter    <= 0;
+            state               <= PROGRAM_0;
         end else begin
             case (state)
                 PROGRAM_0: begin
                     if (sample_valid && (counter == COUNTER_MAX)) begin
                         state <= next_state;
-                        password[3] = input_bit;
+                        password[3] <= input_bit;
                     end
                 end
 
                 PROGRAM_1: begin
                     if (sample_valid && (counter == COUNTER_MAX)) begin
                         state <= next_state;
-                        password[2] = input_bit;
+                        password[2] <= input_bit;
                     end
                 end
 
                 PROGRAM_2: begin
                     if (sample_valid && (counter == COUNTER_MAX)) begin
                         state <= next_state;
-                        password[1] = input_bit;
+                        password[1] <= input_bit;
                     end
                 end
 
                 PROGRAM_3: begin
                     if (sample_valid && (counter == COUNTER_MAX)) begin
                         state <= next_state;
-                        password[0] = input_bit;
+                        password[0] <= input_bit;
                     end
                 end
 
                 LOCKED_0: begin
-                    pass = 0;
+                    pass <= 0;
                     input_counter <= 0;
                     unlocked_counter <= 0;
-                    if(sample_valid && (counter == COUNTER_MAX)) begin
+                    if(sample_valid && (counter == COUNTER_MAX - 1)) begin
                         if( input_bit == password[3] ) begin
-                            pass = 1;
-                        end
+                            pass <= 1;
+                        end 
+                    end else if(sample_valid && (counter == COUNTER_MAX )) begin
                         input_counter <= input_counter + 1;
                         state <= next_state;
                     end
                 end
+                
 
                 LOCKED_1: begin
-                    pass = 0;
-                    if(sample_valid && (counter == COUNTER_MAX)) begin
+                    pass <= 0;
+                    if(sample_valid && (counter == COUNTER_MAX - 1)) begin
                         if( input_bit == password[2] ) begin
-                            pass = 1;
-                        end
+                            pass <= 1;
+                        end                         
+                    end else if(sample_valid && (counter == COUNTER_MAX )) begin
                         input_counter <= input_counter + 1;
                         state <= next_state;
                     end
                 end
 
                 LOCKED_2: begin
-                    pass = 0;
-                    if(sample_valid && (counter == COUNTER_MAX)) begin
+                    pass <= 0;
+                    if(sample_valid && (counter == COUNTER_MAX - 1)) begin
                         if( input_bit == password[1] ) begin
-                            pass = 1;
+                            pass <= 1;
                         end
+                    end else if(sample_valid && (counter == COUNTER_MAX )) begin
                         input_counter <= input_counter + 1;
                         state <= next_state;
                     end
                 end
 
                 LOCKED_3: begin
-                    pass = 0;
-                    if(sample_valid && (counter == COUNTER_MAX)) begin
+                    pass <= 0;
+                    if(sample_valid && (counter == COUNTER_MAX - 1)) begin
                         if( input_bit == password[0] ) begin
-                            pass = 1;
-                        end
+                            pass <= 1;
+                        end 
+                        end else if(sample_valid && (counter == COUNTER_MAX )) begin
                         input_counter <= input_counter + 1;
                         state <= next_state;
                     end
                 end
 
                 ERROR: begin
-                    if(sample_valid && (counter == COUNTER_MAX)) begin
+                    if(sample_valid && (counter == COUNTER_MAX - 1)) begin
                         input_counter <= input_counter + 1;
-                        if((input_counter == 3'd4)) begin
+                    end else if((input_counter == 3'd4) && (counter == COUNTER_MAX)) begin
                             state <= next_state;
                             input_counter <= 0;
-                        end
                     end
                 end
 
@@ -237,7 +241,6 @@ module finite_state_machine_lock(
                     if((unlocked_counter == UNLOCKED_TIMEOUT - 1) && counter == COUNTER_MAX) begin
                         state <= next_state;
                     end
-
                 end
             endcase
         end
