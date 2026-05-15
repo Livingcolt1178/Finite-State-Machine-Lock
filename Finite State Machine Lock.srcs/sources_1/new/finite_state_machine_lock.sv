@@ -43,44 +43,68 @@ module finite_state_machine_lock(
     state_t state, next_state;
 
     // Synchronized button signals
-    logic button_1_sync_r1, button_1_sync_r2;
+    logic button_1_sync_r1, button_1_sync_r2, button_1_input;
     logic button_2_sync_r1, button_2_sync_r2;
     logic button_active_sync;
     
     logic input_bit;
-    logic [26:0] counter;
+    logic [20:0] counter;
     logic sample_valid;
     logic [3:0] password;
     logic [3:0] input_counter;
-    logic [33:0] unlocked_counter;
+    logic [29:0] unlocked_counter;
+    logic [27:0] blinky_counter; 
     
-    parameter DELAY            = 26'd1500000;      // 15 ms debounce
-    parameter UNLOCKED_TIMEOUT = 33'd500000000;   // 5 second timeout
+    parameter DELAY            = 21'd1500000;     // 15 ms debounce
+    parameter UNLOCKED_TIMEOUT = 29'd500000000;   // 5 second timeout
     
     // ========================================
     // Metastability Protection Synchronizers
     // ========================================
     always_ff @(posedge clk) begin : synchronizers
         if(!rst_n) begin
-            button_1_sync_r1 <= 1;  // Reset to inactive (HIGH for active-LOW buttons)
+            button_1_sync_r1 <= 1;  
             button_1_sync_r2 <= 1;
             button_2_sync_r1 <= 1;
             button_2_sync_r2 <= 1;
+            button_1_input   <= 1;
         end else begin
             // Synchronize each button independently
             button_1_sync_r1 <= button_1;
             button_1_sync_r2 <= button_1_sync_r1;
+            button_1_input   <= button_1_sync_r2;
             
             button_2_sync_r1 <= button_2;
             button_2_sync_r2 <= button_2_sync_r1;
         end
     end
     
-    // CRITICAL FIX: Invert button logic for active-LOW buttons
+ 
     // Active-LOW means: button_1 = 0 when pressed, 1 when not pressed
-    // We want button_active_sync = 1 when button is pressed
-    // So: button_active_sync = !button_1_sync_r2 || !button_2_sync_r2
+    // button_active_sync = 1 when button is pressed
     assign button_active_sync = (!button_1_sync_r2) || (!button_2_sync_r2);
+
+    // ========================================
+    // Debouncer
+    // ========================================
+    always_ff @(posedge clk) begin : debouncer
+        if(!rst_n) begin
+            sample_valid <= 0;
+            input_bit    <= 0;
+            counter      <= 0;
+        end else begin
+            if(button_active_sync && counter < DELAY) begin
+                counter <= counter + 1'b1;
+            end else if (!button_active_sync && counter == DELAY) begin
+                input_bit    <= !button_1_input;  
+                sample_valid <= 1;
+                counter      <= 0;
+            end else if(!button_active_sync) begin
+                sample_valid <= 0;
+                counter      <= 0;
+            end
+        end
+    end
     
     // ========================================
     // State Transition Logic (Combinational)
@@ -138,27 +162,7 @@ module finite_state_machine_lock(
         endcase
     end
 
-    // ========================================
-    // Debouncer
-    // ========================================
-    always_ff @(posedge clk) begin : debouncer
-        if(!rst_n) begin
-            sample_valid <= 0;
-            input_bit    <= 0;
-            counter      <= 0;
-        end else begin
-            if(button_active_sync && counter < DELAY) begin
-                counter <= counter + 1'b1;
-            end else if (!button_active_sync && counter == DELAY) begin
-                input_bit    <= !button_1_sync_r2;  
-                sample_valid <= 1;
-                counter      <= 0;
-            end else if(!button_active_sync) begin
-                sample_valid <= 0;
-                counter      <= 0;
-            end
-        end
-    end
+
     
     // ========================================
     // FSM State Machine (Sequential)
@@ -202,6 +206,7 @@ module finite_state_machine_lock(
                 LOCKED_0: begin
                     input_counter    <= 0;
                     unlocked_counter <= 0;
+                    blinky_counter   <= 0;
                     if(sample_valid) begin
                         input_counter <= input_counter + 1;
                         state         <= next_state;
@@ -230,11 +235,15 @@ module finite_state_machine_lock(
                 end
 
                 ERROR: begin
-                    if(sample_valid) begin
+                    if(sample_valid &&  (input_counter < 3'd4)) begin
                         input_counter <= input_counter + 1;
                     end else if(input_counter == 3'd4) begin
-                        state         <= next_state;
-                        input_counter <= 0;
+                        if(blinky_counter < 250000000) begin
+                            blinky_counter <= blinky_counter + 1;
+                        end else begin
+                            state         <= next_state;
+                            input_counter <= 0;
+                        end
                     end
                 end
 
@@ -256,6 +265,27 @@ module finite_state_machine_lock(
             UNLOCKED: begin
                 led_red   = 1'b0;
                 led_green = 1'b1;
+            end
+
+            ERROR: begin    //should blink to signify failed attempt
+                if(input_counter == 3'd4)begin
+                    if(blinky_counter < 50000000) begin
+                        led_red = 1'b0;
+                    end else if (blinky_counter < 100000000 ) begin
+                        led_red = 1'b1;
+                    end else if(blinky_counter < 150000000) begin
+                        led_red = 1'b0;
+                    end else if(blinky_counter < 200000000) begin
+                        led_red = 1'b1;
+                    end else if (blinky_counter < 250000000 ) begin
+                        led_red = 1'b0;
+                    end else begin
+                        led_red = 1'b1;
+                    end
+                end else begin
+                    led_red = 1'b1;
+                end
+                led_green = 1'b0;
             end
 
             default: begin

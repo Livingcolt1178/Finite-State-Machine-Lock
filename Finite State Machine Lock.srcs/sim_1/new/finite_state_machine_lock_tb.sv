@@ -98,8 +98,7 @@ module finite_state_machine_lock_tb();
     endtask
 
     // ========================================
-    // Button Input Tasks - UPDATED FOR NEW DEBOUNCER
-    // New debouncer requires: press -> hold for DELAY -> release to trigger
+    // Button Input Tasks
     // ========================================
     
     task button_1_press();
