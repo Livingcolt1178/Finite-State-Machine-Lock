@@ -1,27 +1,21 @@
 `timescale 1ns / 1ps
 //////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
+// Company: Georgia Tech
+// Engineer: Nicholas Bramhall
 // 
-// Create Date: 04/24/2026 02:59:57 PM
-// Design Name: 
+// Create Date: 04/24/2026
+// Design Name: FSM Lock Testbench (Updated for Release-on-Hold Debouncer)
 // Module Name: finite_state_machine_lock_tb
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
+// Project Name: finite_state_machine_lock
+//
+// Description: Testbench for 4-digit FSM lock with debouncing
+// New debouncer behavior: press button -> hold for DELAY cycles -> release to trigger
+//
+// Revision 0.02 - Updated for new debouncer
 // Revision 0.01 - File Created
-// Additional Comments:
-// 
 //////////////////////////////////////////////////////////////////////////////////
 
-
 module finite_state_machine_lock_tb();
-
 
     // ========================================
     // Testbench Signals
@@ -35,18 +29,16 @@ module finite_state_machine_lock_tb();
     
     // Internal signal monitors (for debugging)
     typedef enum logic [3:0] {
-        PROGRAM_0   = 4'b0000,  //initial state, waiting for the first button press
-        PROGRAM_1   = 4'b0001,  //2nd digit in password
-        PROGRAM_2   = 4'b0010,  //3rd digit in password
-        PROGRAM_3   = 4'b0011,  //4th digit in password
-    
-        LOCKED_0    = 4'b0100,  //locked state, must match 1st digit of password
-        LOCKED_1    = 4'b0101,  //locked state, must match 2nd digit of password
-        LOCKED_2    = 4'b0110,  //locked state, must match 3rd digit of password
-        LOCKED_3    = 4'b0111,  //locked state, must match 4th digit of password
-
-        UNLOCKED    = 4'b1000,   //unlocked state, waits for 5 seconds before locking again.
-        ERROR       = 4'b1001   //Made a mistake in enterring Password
+        PROGRAM_0   = 4'b0000,
+        PROGRAM_1   = 4'b0001,
+        PROGRAM_2   = 4'b0010,
+        PROGRAM_3   = 4'b0011,
+        LOCKED_0    = 4'b0100,
+        LOCKED_1    = 4'b0101,
+        LOCKED_2    = 4'b0110,
+        LOCKED_3    = 4'b0111,
+        UNLOCKED    = 4'b1000,
+        ERROR       = 4'b1001
     } state_t;
 
     state_t state, next_state;
@@ -68,20 +60,23 @@ module finite_state_machine_lock_tb();
     assign next_state = dut.next_state;
  
     // ========================================
-    // Clock Generation (100 MHz) 1 cycle per 10ns
+    // Clock Generation (100 MHz) 
     // ========================================
     initial begin
         clk = 0;
         forever #5 clk = ~clk;  // 10 ns period = 100 MHz
     end
 
-    //tasks
-    task check(input string test, input logic[7:0] expected, input logic[7:0] got);
+    // ========================================
+    // Helper Tasks
+    // ========================================
+    
+    task check(input string test, input logic[33:0] expected, input logic[33:0] got);
         begin
             if(expected == got) begin
-                $display("[%d]passed!  test: %s, got: %b, expected: %b", $time, test, got, expected);
+                $display("[%0t ns] ✓ PASS: %s | Expected: %h, Got: %h", $time, test, expected, got);
             end else begin
-                $error("[%d]ERROR  test: %s, got: %b, expected: %b", $time, test, got, expected);
+                $error("[%0t ns] ✗ FAIL: %s | Expected: %h, Got: %h", $time, test, expected, got);
             end
         end
     endtask
@@ -92,232 +87,224 @@ module finite_state_machine_lock_tb();
         end 
     endtask
 
-    task wait_cycle(input int N);
+    // Wait for debouncer counter to reset (sample_valid pulse completes)
+    task wait_for_debounce();
         begin
-            repeat(N) do begin
-                @(posedge clk);
-            end while(dut.counter > 0);
+            wait(dut.sample_valid == 1'b1);  // Wait for sample_valid to pulse
+            @(posedge clk);
+            wait(dut.sample_valid == 1'b0);  // Wait for it to go back low
+            @(posedge clk);
+        end 
+    endtask
+
+    // ========================================
+    // Button Input Tasks - UPDATED FOR NEW DEBOUNCER
+    // New debouncer requires: press -> hold for DELAY -> release to trigger
+    // ========================================
+    
+    task button_1_press();
+        begin
+            button_1 = 1'b0;
+            button_2 = 1'b1;
+            wait_clk(dut.DELAY + 1);  // Hold until counter reaches DELAY
+            button_1 = 1'b1;           // Release to trigger
+            button_2 = 1'b1;
+            wait_for_debounce();       // Wait for sample_valid pulse
+        end
+    endtask
+
+    task button_2_press();
+        begin
+            button_1 = 1'b1;
+            button_2 = 1'b0;
+            wait_clk(dut.DELAY + 1);  // Hold until counter reaches DELAY
+            button_1 = 1'b1;           // Release to trigger
+            button_2 = 1'b1;
+            wait_for_debounce();       // Wait for sample_valid pulse
+        end
+    endtask
+
+    // Early release (before DELAY) - should NOT trigger
+    task button_1_early_release();
+        begin
+            button_1 = 1'b0;
+            button_2 = 1'b1;
+            wait_clk(dut.DELAY / 2);  // Hold for half the debounce time
+            button_1 = 1'b1;
+            button_2 = 1'b1;
+            wait_clk(10);              // Wait for counter to reset
         end
     endtask
 
     task program_lock(input int a, input int b, input int c, input int d);
-        check("programming", PROGRAM_0, state);
-        button_1 = a;
-        button_2 = !button_1;
-        wait_cycle(1);
-
-        check("programming", PROGRAM_1, state);
-        button_1 = b;
-        button_2 = !button_1;
-        wait_cycle(1);
-
-        check("programming", PROGRAM_2, state);
-        button_1 = c;
-        button_2 = !button_1;
-        wait_cycle(1);
-
-        check("programming", PROGRAM_3, state);
-        button_1 = d;
-        button_2 = !button_1;
-        wait_cycle(1);
-
-        button_1 = 0;
-        button_2 = 0;
-
-        check("programming", LOCKED_0, state);
-    endtask
-
-    task button_1_input(input string timing);
         begin
-            if (timing == "start") begin
-                button_1 = 1;
-                wait_clk(1);
-                button_1  = 0;
-                wait_clk(254);
-            end else if (timing == "middle") begin
-                button_1 = 0;
-                wait_clk(127);
-                button_1  = 1;
-                wait_clk(1);
-                button_1  = 0;
-                wait_clk(127);
-            end else begin
-                button_1 = 0;
-                wait_clk(254);
-                button_1 = 1;
-                wait_clk(1);
-                button_1 = 0;
-            end
-        end
-    endtask
-
-    
-    task button_2_input(input string timing);
-        begin
-            if (timing == "start") begin
-                button_2 = 1;
-                wait_clk(1);
-                button_2  = 0;
-                wait_clk(254);
-            end else if (timing == "middle") begin
-                button_2 = 0;
-                wait_clk(127);
-                button_2  = 1;
-                wait_clk(1);
-                button_2  = 0;
-                wait_clk(127);
-            end else begin
-                button_2 = 0;
-                wait_clk(254);
-                button_2 = 1;
-                wait_clk(1);
-                button_2 = 0;
-            end
+            check("PROGRAM_0 state", PROGRAM_0, state);
+            
+            // Program digit 1
+            if (a == 1) button_1_press();
+            else        button_2_press();
+            check("PROGRAM_1 state", PROGRAM_1, state);
+            
+            // Program digit 2
+            if (b == 1) button_1_press();
+            else        button_2_press();
+            check("PROGRAM_2 state", PROGRAM_2, state);
+            
+            // Program digit 3
+            if (c == 1) button_1_press();
+            else        button_2_press();
+            check("PROGRAM_3 state", PROGRAM_3, state);
+            
+            // Program digit 4
+            if (d == 1) button_1_press();
+            else        button_2_press();
+            check("LOCKED_0 state (after programming)", LOCKED_0, state);
         end
     endtask
 
     task rst();
         begin
             rst_n = 0;
+            button_1 = 1;
+            button_2 = 1;
             repeat(5) @(posedge clk);
             rst_n = 1;
-            wait_cycle(1);  
+            wait_clk(2);
         end
     endtask
 
-    // assert property (@(posedge clk) 
-    //     (state != 4'b1000) -> (led_red == 1'b1)
-    // ) else $error("Red LED should be on when locked!");
-    
-    // // Green LED rule: Only on when UNLOCKED
-    // assert property (@(posedge clk) 
-    //     (state == 4'b1000) -> (led_green == 1'b1)
-    // ) else $error("Green LED should be on when unlocked!");
-    
-    // // Mutual exclusion: Can't have both LEDs on
-    // assert property (@(posedge clk) 
-    //     !(led_red & led_green)
-    // ) else $error("Both LEDs can't be on!");
-
+    // ========================================
+    // Main Testbench
+    // ========================================
     initial begin
         rst();
+        
         //===============
-        //Test 1: rst check
+        // Test 1: Reset Check
         //===============
-        check("rst test: check password",           0,  dut.password);
-        check("rst test: check counter",            0,  dut.counter);
-        check("rst test: check input",              0,  dut.input_bit);
-        check("rst test: check unlocked_counter",   0,  dut.unlocked_counter);
-        check("rst test: check input_counter",      0,  dut.input_counter);
-        check("rst test: check state",              PROGRAM_0,  state);
+        $display("\n========== TEST 1: Reset Check ==========");
+        check("password after reset",           0,  dut.password);
+        check("counter after reset",            0,  dut.counter);
+        check("input_bit after reset",          0,  dut.input_bit);
+        check("unlocked_counter after reset",   0,  dut.unlocked_counter);
+        check("input_counter after reset",      0,  dut.input_counter);
+        check("state after reset",              PROGRAM_0,  state);
+        check("sample_valid after reset",       0,  dut.sample_valid);
 
         //=============
-        // Test 2: test programmability
+        // Test 2: Programming Lock
         //=============
+        $display("\n========== TEST 2: Programming Lock (1010) ==========");
         program_lock(1, 0, 1, 0);
-        check("programmability test: check state",      LOCKED_0,  state);
-        check("programmability test: check counter",    1'b0,  dut.counter);
-        check("programmability test: check password",   4'b1010,  dut.password);
+        check("password after programming",   4'b1010,  dut.password);
+        check("sample_valid cleared",         0,        dut.sample_valid);
 
         //=============
-        // Test 3: test input 1
+        // Test 3: Correct Input - Digit 1
         //=============
-        button_1_input("start");
-        wait_cycle(1);
-        check("input 1 test: check state",              LOCKED_1,  state);
-        check("input 1 test: check counter",            0,  dut.counter);
-        check("input 1 test: check input",              1,  dut.input_bit);
-        check("input 1 test: check input_counter",      1,  dut.input_counter);
+        $display("\n========== TEST 3: Correct Input Digit 1 (should be 1) ==========");
+        button_1_press();
+        check("state after digit 1",          LOCKED_1,  state);
+        check("input_bit (should be 1)",      1,         dut.input_bit);
+        check("input_counter",                1,         dut.input_counter);
 
         //=============
-        // Test 4: test input 2
+        // Test 4: Correct Input - Digit 2
         //=============
-        button_2_input("start");
-        wait_cycle(1);
-        check("input 2 test: check state",              LOCKED_2,  state);
-        check("input 2 test: check counter",            0,  dut.counter);
-        check("input 2 test: check input",              0,  dut.input_bit);
-        check("input 2 test: check input_counter",      2,  dut.input_counter);
+        $display("\n========== TEST 4: Correct Input Digit 2 (should be 0) ==========");
+        button_2_press();
+        check("state after digit 2",          LOCKED_2,  state);
+        check("input_bit (should be 0)",      0,         dut.input_bit);
+        check("input_counter",                2,         dut.input_counter);
 
         //=============
-        // Test 5: test input 3
+        // Test 5: Correct Input - Digit 3
         //=============
-        button_1_input("start");
-        wait_cycle(1);
-        check("input 3 test: check state",              LOCKED_3,  state);
-        check("input 3 test: check counter",            0,  dut.counter);
-        check("input 3 test: check input",              1,  dut.input_bit);
-        check("input 3 test: check input_counter",      3,  dut.input_counter);
+        $display("\n========== TEST 5: Correct Input Digit 3 (should be 1) ==========");
+        button_1_press();
+        check("state after digit 3",          LOCKED_3,  state);
+        check("input_bit (should be 1)",      1,         dut.input_bit);
+        check("input_counter",                3,         dut.input_counter);
 
         //=============
-        // Test 6: test input 4
+        // Test 6: Correct Input - Digit 4 (Unlock)
         //=============
-        button_2_input("start");
-        wait_cycle(1);
-        check("input 4 test: check state",              UNLOCKED,  state);
-        check("input 4 test: check counter",            0,  dut.counter);
-        check("input 4 test: check input",              0,  dut.input_bit);
-        check("input 4 test: check input_counter",      4,  dut.input_counter);
-
+        $display("\n========== TEST 6: Correct Input Digit 4 (should be 0, UNLOCK) ==========");
+        button_2_press();
+        check("state after digit 4",          UNLOCKED,  state);
+        check("input_bit (should be 0)",      0,         dut.input_bit);
+        check("input_counter",                4,         dut.input_counter);
 
         //=============
-        // Test 7: test Unlocked
+        // Test 7: UNLOCKED State
         //=============
-        check("Unlocked test: check state",             UNLOCKED,  state);
-        check("Unlocked test: check counter",           0,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  0,  dut.unlocked_counter);
-        @(posedge clk);
-        check("Unlocked test: check state",             UNLOCKED,  state);
-        check("Unlocked test: check counter",           1,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  1,  dut.unlocked_counter);
-        @(posedge clk);
-        check("Unlocked test: check state",             UNLOCKED,  state);
-        check("Unlocked test: check counter",           2,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  2,  dut.unlocked_counter);
-        @(posedge clk);
-        check("Unlocked test: check state",             UNLOCKED,  state);
-        check("Unlocked test: check counter",           3,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  3,  dut.unlocked_counter);
-        @(posedge clk);
-        check("Unlocked test: check state",             UNLOCKED,  state);
-        check("Unlocked test: check counter",           4,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  4,  dut.unlocked_counter);
-        @(posedge clk);
-        check("Unlocked test: check state",             UNLOCKED,  state);
-        check("Unlocked test: check counter",           5,  dut.counter);
-        check("Unlocked test: check unlocked_counter",  5,  dut.unlocked_counter);
-
-
+        $display("\n========== TEST 7: UNLOCKED State (5 second timeout) ==========");
+        check("unlocked_counter at start",    0,         dut.unlocked_counter);
+        check("led_green should be ON",       1,         led_green);
+        check("led_red should be OFF",        0,         led_red);
+        
+        // Wait a shorter time to verify it stays unlocked
+        wait_clk(100);
+        check("still unlocked after 100 cycles", UNLOCKED, state);
+        check("unlocked_counter incrementing",   100,      dut.unlocked_counter);
 
         //=============
-        // Test 8: test ERROR
+        // Test 8: ERROR State (Wrong Password)
         //=============
+        $display("\n========== TEST 8: ERROR State (Wrong Password) ==========");
         rst();
-        program_lock( 0, 1, 0, 1);
-        button_1_input("start");
-        wait_cycle(1);
-        check("ERROR test: check state",              ERROR,  state);
-        check("ERROR test: check input",              1,  dut.input_bit);
-        check("ERROR test: check input_counter",      1,  dut.input_counter);
-        button_1_input("start");
-        wait_cycle(1);
-        check("ERROR test: check state",              ERROR,  state);
-        check("ERROR test: check input",              1,  dut.input_bit);
-        check("ERROR test: check input_counter",      2,  dut.input_counter);
-        button_1_input("start");
-        wait_cycle(1);
-        check("ERROR test: check state",              ERROR,  state);
-        check("ERROR test: check input",              1,  dut.input_bit);
-        check("ERROR test: check input_counter",      3,  dut.input_counter);
-        button_1_input("start");
-        wait_cycle(1);
-        check("ERROR test: check state",              LOCKED_0,  state);
-        check("ERROR test: check input",              1,  dut.input_bit);
-        check("ERROR test: check input_counter",      0,  dut.input_counter);
+        program_lock(0, 1, 0, 1);  // Program: 0101
+        
+        // Try to unlock with wrong first digit (send 1 instead of 0)
+        button_1_press();
+        check("ERROR state triggered",        ERROR,     state);
+        check("led_red should be ON",         1,         led_red);
+        check("led_green should be OFF",      0,         led_green);
+        check("input_counter in ERROR",       1,         dut.input_counter);
+        
+        // Need 4 wrong inputs to return to LOCKED_0
+        button_1_press();
+        check("ERROR still active (2 inputs)", ERROR,    state);
+        check("input_counter",                2,         dut.input_counter);
+        
+        button_1_press();
+        check("ERROR still active (3 inputs)", ERROR,    state);
+        check("input_counter",                3,         dut.input_counter);
+        
+        button_1_press();
+        @(posedge clk) //an extra posedge clk to give it time for the 4th input bit to propagate
+        check("Back to LOCKED_0 after 4 errors", LOCKED_0, state);
+        check("input_counter reset",          0,         dut.input_counter);
 
+        //=============
+        // Test 9: Early Button Release (Debounce Failure)
+        //=============
+        $display("\n========== TEST 9: Early Release (Should NOT trigger) ==========");
+        button_1_early_release();
+        check("should still be in LOCKED_0",  LOCKED_0,  state);
+        check("sample_valid should be 0",     0,         dut.sample_valid);
 
+        //=============
+        // Test 10: Programming Mode with Wrong Inputs
+        //=============
+        $display("\n========== TEST 10: Program Different Lock (1111) ==========");
+        rst();
+        program_lock(1, 1, 1, 1);
+        check("new password set to 1111",     4'b1111,   dut.password);
+        
+        button_1_press();
+        check("digit 1 correct",              LOCKED_1,  state);
+        button_1_press();
+        check("digit 2 correct",              LOCKED_2,  state);
+        button_1_press();
+        check("digit 3 correct",              LOCKED_3,  state);
+        button_1_press();
+        check("ALL UNLOCKED",                 UNLOCKED,  state);
+        check("led_green on",                 1,         led_green);
 
+        $display("\n========== ALL TESTS COMPLETE ==========");
         $finish;
 
     end
+
 endmodule

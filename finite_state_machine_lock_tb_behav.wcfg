@@ -11,15 +11,15 @@
       </db_ref>
    </db_ref_list>
    <zoom_setting>
-      <ZoomStartTime time="15,298.741 ns"></ZoomStartTime>
-      <ZoomEndTime time="15,492.852 ns"></ZoomEndTime>
-      <Cursor1Time time="15,400.664 ns"></Cursor1Time>
+      <ZoomStartTime time="0.000000000 ms"></ZoomStartTime>
+      <ZoomEndTime time="96.700000001 ms"></ZoomEndTime>
+      <Cursor1Time time="21.400000000 ms"></Cursor1Time>
    </zoom_setting>
    <column_width_setting>
       <NameColumnWidth column_width="151"></NameColumnWidth>
-      <ValueColumnWidth column_width="144"></ValueColumnWidth>
+      <ValueColumnWidth column_width="138"></ValueColumnWidth>
    </column_width_setting>
-   <WVObjectSize size="13" />
+   <WVObjectSize size="17" />
    <wvobject fp_name="/finite_state_machine_lock_tb/clk" type="logic">
       <obj_property name="ElementShortName">clk</obj_property>
       <obj_property name="ObjectShortName">clk</obj_property>
@@ -53,18 +53,14 @@
       <obj_property name="ObjectShortName">next_state[3:0]</obj_property>
    </wvobject>
    <wvobject fp_name="/finite_state_machine_lock_tb/dut/counter" type="array">
-      <obj_property name="ElementShortName">counter[7:0]</obj_property>
-      <obj_property name="ObjectShortName">counter[7:0]</obj_property>
+      <obj_property name="ElementShortName">counter[26:0]</obj_property>
+      <obj_property name="ObjectShortName">counter[26:0]</obj_property>
       <obj_property name="Radix">OCTALRADIX</obj_property>
    </wvobject>
    <wvobject fp_name="/finite_state_machine_lock_tb/dut/password" type="array">
       <obj_property name="ElementShortName">password[3:0]</obj_property>
       <obj_property name="ObjectShortName">password[3:0]</obj_property>
       <obj_property name="Radix">BINARYRADIX</obj_property>
-   </wvobject>
-   <wvobject fp_name="/finite_state_machine_lock_tb/dut/pass" type="logic">
-      <obj_property name="ElementShortName">pass</obj_property>
-      <obj_property name="ObjectShortName">pass</obj_property>
    </wvobject>
    <wvobject fp_name="/finite_state_machine_lock_tb/dut/input_bit" type="logic">
       <obj_property name="ElementShortName">input_bit</obj_property>
@@ -73,5 +69,25 @@
    <wvobject fp_name="/finite_state_machine_lock_tb/dut/sample_valid" type="logic">
       <obj_property name="ElementShortName">sample_valid</obj_property>
       <obj_property name="ObjectShortName">sample_valid</obj_property>
+   </wvobject>
+   <wvobject fp_name="/finite_state_machine_lock_tb/dut/button_1_sync_r1" type="logic">
+      <obj_property name="ElementShortName">button_1_sync_r1</obj_property>
+      <obj_property name="ObjectShortName">button_1_sync_r1</obj_property>
+   </wvobject>
+   <wvobject fp_name="/finite_state_machine_lock_tb/dut/button_1_sync_r2" type="logic">
+      <obj_property name="ElementShortName">button_1_sync_r2</obj_property>
+      <obj_property name="ObjectShortName">button_1_sync_r2</obj_property>
+   </wvobject>
+   <wvobject fp_name="/finite_state_machine_lock_tb/dut/button_2_sync_r1" type="logic">
+      <obj_property name="ElementShortName">button_2_sync_r1</obj_property>
+      <obj_property name="ObjectShortName">button_2_sync_r1</obj_property>
+   </wvobject>
+   <wvobject fp_name="/finite_state_machine_lock_tb/dut/button_2_sync_r2" type="logic">
+      <obj_property name="ElementShortName">button_2_sync_r2</obj_property>
+      <obj_property name="ObjectShortName">button_2_sync_r2</obj_property>
+   </wvobject>
+   <wvobject fp_name="/finite_state_machine_lock_tb/dut/button_active_sync" type="logic">
+      <obj_property name="ElementShortName">button_active_sync</obj_property>
+      <obj_property name="ObjectShortName">button_active_sync</obj_property>
    </wvobject>
 </wave_config>
