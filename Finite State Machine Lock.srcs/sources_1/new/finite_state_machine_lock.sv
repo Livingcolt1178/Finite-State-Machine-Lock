@@ -235,7 +235,7 @@ module finite_state_machine_lock(
                 end
 
                 ERROR: begin
-                    if(sample_valid &&  (input_counter < 3'd4)) begin
+                    if(sample_valid && (input_counter < 3'd4)) begin
                         input_counter <= input_counter + 1;
                     end else if(input_counter == 3'd4) begin
                         if(blinky_counter < 250000000) begin
