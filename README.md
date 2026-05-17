@@ -78,7 +78,7 @@ Finite State Machine Lock.srcs/
 
 ### Why 3-Stage Synchronizer?
 
-The third stage provides extra timing margin for the debouncer's 1.5M-cycle wait. While 2 stages satisfy metastability requirements theoretically, the additional stage was added to ensure robust operation under varying conditions and simplify timing analysis.
+The third stage is because without it the sychronized data is updated too soon to propagate the correct data, with the extra flip flip it holds onto the correct input for the extra cycle needed.
 
 ### Button Comparison Strategy
 
